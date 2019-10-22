@@ -15,6 +15,17 @@
 
 #define VALIDATE_DOCUMENT(document, ...) { if (!document.isValid) { NSLog(@"Document is invalid."); if (self.onDocumentLoadFailed) { self.onDocumentLoadFailed(@{@"error": @"Document is invalid."}); } return __VA_ARGS__; }}
 
+@interface CustomImagePickerController : PSPDFImagePickerController
+@end
+
+@implementation CustomImagePickerController
+
+- (PSPDFImageQuality)allowedImageQualities {
+  return PSPDFImageQualityLow; // This forces low. You can also return `PSPDFImageQualityAll` to allow the user to select the image quality.
+}
+
+@end
+
 @interface RCTPSPDFKitView ()<PSPDFDocumentDelegate, PSPDFViewControllerDelegate, PSPDFFlexibleToolbarContainerDelegate>
 
 @property (nonatomic, nullable) UIViewController *topController;
@@ -28,6 +39,9 @@
     _pdfController = [[PSPDFViewController alloc] init];
     _pdfController.delegate = self;
     _pdfController.annotationToolbarController.delegate = self;
+    _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+        [builder overrideClass:PSPDFImagePickerController.class withClass:CustomImagePickerController.class];
+    }]];
     _closeButton = [[UIBarButtonItem alloc] initWithImage:[PSPDFKitGlobal imageNamed:@"x"] style:UIBarButtonItemStylePlain target:self action:@selector(closeButtonPressed:)];
     
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationChangedNotification object:nil];
