@@ -218,14 +218,6 @@ RCT_MULTI_ENUM_CONVERTER(PSPDFTextSelectionMenuAction,
                          PSPDFTextSelectionMenuActionNone,
                          unsignedIntegerValue)
 
-RCT_MULTI_ENUM_CONVERTER(PSPDFImageQuality,
-                        (@{@"low" : @(PSPDFImageQualityLow),
-                           @"medium" : @(PSPDFImageQualityMedium),
-                           @"high" : @(PSPDFImageQualityHigh),
-                           @"all" : @(PSPDFImageQualityAll),
-                        PSPDFImageQualityAll,
-                        unsignedIntegerValue)
-
 RCT_MULTI_ENUM_CONVERTER(PSPDFAppearanceMode,
                          (@{@"default" : @(PSPDFAppearanceModeDefault),
                             @"sepia" : @(PSPDFAppearanceModeSepia),
@@ -303,7 +295,6 @@ RCT_MULTI_ENUM_CONVERTER(PSPDFDocumentSharingPagesOptions,
   SET(useParentNavigationBar, BOOL)
   SET(linkAction, PSPDFLinkAction)
   SET(allowedMenuActions, PSPDFTextSelectionMenuAction)
-  SET(allowedImageQualities, PSPDFImageQuality)
   SET(userInterfaceViewMode, PSPDFUserInterfaceViewMode)
   SET(userInterfaceViewAnimation, PSPDFUserInterfaceViewAnimation)
   SET_PROPERTY(showThumbnailBar, thumbnailBarMode, PSPDFThumbnailBarMode)
