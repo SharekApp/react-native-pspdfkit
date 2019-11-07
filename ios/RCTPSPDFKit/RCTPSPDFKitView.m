@@ -518,19 +518,19 @@
     PSPDFAnnotationGroupItem *line = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringLine];
     PSPDFAnnotationGroupItem *polygon = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringPolygon];
     PSPDFAnnotationGroupItem *polyline = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringPolyLine];
-
+    
     PSPDFAnnotationGroupItem *sound = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringSound];
     PSPDFAnnotationGroupItem *image = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringImage];
     PSPDFAnnotationGroupItem *link = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringLink];
-
+    
     PSPDFAnnotationGroupItem *eraser = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringEraser];
     PSPDFAnnotationGroupItem *note = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringNote];
 
 
-    NSArray<PSPDFAnnotationGroup *> *compactGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[eraser, note]],  [PSPDFAnnotationGroup groupWithItems:@[square, circle, line, polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
+    NSArray<PSPDFAnnotationGroup *> *compactGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[eraser]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line, polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
     PSPDFAnnotationToolbarConfiguration *compact = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:compactGroups];
 
-    NSArray<PSPDFAnnotationGroup *> *regularGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[eraser]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]], [PSPDFAnnotationGroup groupWithItems:@[polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
+    NSArray<PSPDFAnnotationGroup *> *regularGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[eraser]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line, polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
     PSPDFAnnotationToolbarConfiguration *regular = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:regularGroups];
 
     self.configurations = @[regular, compact];
