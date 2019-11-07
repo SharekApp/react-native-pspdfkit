@@ -23,7 +23,9 @@
 - (PSPDFImageQuality)allowedImageQualities {
   return PSPDFImageQualityLow; // This forces low. You can also return `PSPDFImageQualityAll` to allow the user to select the image quality.
 }
+@end
 
+@interface CustomButtonAnnotationToolbar : PSPDFAnnotationToolbar
 @end
 
 @interface RCTPSPDFKitView ()<PSPDFDocumentDelegate, PSPDFViewControllerDelegate, PSPDFFlexibleToolbarContainerDelegate>
@@ -38,22 +40,23 @@
   if ((self = [super initWithFrame:frame])) {
     // Set configuration to use the custom annotation tool bar when initializing the PSPDFViewController.
     // For more details, see `PSCCustomizeAnnotationToolbarExample.m` from PSPDFCatalog and our documentation here: https://pspdfkit.com/guides/ios/current/customizing-the-interface/customize-the-annotation-toolbar/
-    _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
-      [builder overrideClass:PSPDFAnnotationToolbar.class withClass:CustomButtonAnnotationToolbar.class];
-    }]];
+//    _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+//      [builder overrideClass:PSPDFAnnotationToolbar.class withClass:CustomButtonAnnotationToolbar.class];
+//    }]];
 
     _pdfController.delegate = self;
     _pdfController.annotationToolbarController.delegate = self;
     _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+        [builder overrideClass:PSPDFAnnotationToolbar.class withClass:CustomButtonAnnotationToolbar.class];
         [builder overrideClass:PSPDFImagePickerController.class withClass:CustomImagePickerController.class];
     }]];
     _closeButton = [[UIBarButtonItem alloc] initWithImage:[PSPDFKitGlobal imageNamed:@"x"] style:UIBarButtonItemStylePlain target:self action:@selector(closeButtonPressed:)];
-    
+
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationChangedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationsAddedNotification object:nil];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(annotationChangedNotification:) name:PSPDFAnnotationsRemovedNotification object:nil];
   }
-  
+
   return self;
 }
 
@@ -74,21 +77,21 @@
   if (controller == nil || self.window == nil || self.topController != nil) {
     return;
   }
-  
+
   if (self.pdfController.configuration.useParentNavigationBar || self.hideNavigationBar) {
     self.topController = self.pdfController;
-    
+
   } else {
     self.topController = [[PSPDFNavigationController alloc] initWithRootViewController:self.pdfController];;
   }
-  
+
   UIView *topControllerView = self.topController.view;
   topControllerView.translatesAutoresizingMaskIntoConstraints = NO;
-  
+
   [self addSubview:topControllerView];
   [controller addChildViewController:self.topController];
   [self.topController didMoveToParentViewController:controller];
-  
+
   [NSLayoutConstraint activateConstraints:
    @[[topControllerView.topAnchor constraintEqualToAnchor:self.topAnchor],
      [topControllerView.bottomAnchor constraintEqualToAnchor:self.bottomAnchor],
@@ -107,7 +110,7 @@
 - (void)closeButtonPressed:(nullable id)sender {
   if (self.onCloseButtonPressed) {
     self.onCloseButtonPressed(@{});
-    
+
   } else {
     // try to be smart and pop if we are not displayed modally.
     BOOL shouldDismiss = YES;
@@ -209,7 +212,7 @@
 - (NSDictionary<NSString *, NSArray<NSDictionary *> *> *)getAnnotations:(PSPDFPageIndex)pageIndex type:(PSPDFAnnotationType)type error:(NSError *_Nullable *)error {
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil);
-  
+
   NSArray <PSPDFAnnotation *> *annotations = [document annotationsForPageAtIndex:pageIndex type:type];
   NSArray <NSDictionary *> *annotationsJSON = [RCTConvert instantJSONFromAnnotations:annotations error:error];
   return @{@"annotations" : annotationsJSON};
@@ -225,11 +228,11 @@
     NSLog(@"Invalid JSON Annotation.");
     return NO;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
   PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
-  
+
   BOOL success = NO;
   if (data) {
     PSPDFAnnotation *annotation = [PSPDFAnnotation annotationFromInstantJSON:data documentProvider:documentProvider error:error];
@@ -237,11 +240,11 @@
       success = [document addAnnotations:@[annotation] options:nil];
     }
   }
-  
+
   if (!success) {
     NSLog(@"Failed to add annotation.");
   }
-  
+
   return success;
 }
 
@@ -249,7 +252,7 @@
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
   BOOL success = NO;
-  
+
   NSArray<PSPDFAnnotation *> *allAnnotations = [[document allAnnotationsOfType:PSPDFAnnotationTypeAll].allValues valueForKeyPath:@"@unionOfArrays.self"];
   for (PSPDFAnnotation *annotation in allAnnotations) {
     // Remove the annotation if the uuids match.
@@ -258,7 +261,7 @@
       break;
     }
   }
-  
+
   if (!success) {
     NSLog(@"Failed to remove annotation.");
   }
@@ -268,7 +271,7 @@
 - (NSDictionary<NSString *, NSArray<NSDictionary *> *> *)getAllUnsavedAnnotationsWithError:(NSError *_Nullable *)error {
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil)
-  
+
   PSPDFDocumentProvider *documentProvider = document.documentProviders.firstObject;
   NSData *data = [document generateInstantJSONFromDocumentProvider:documentProvider error:error];
   NSDictionary *annotationsJSON = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:error];
@@ -294,7 +297,7 @@
     NSLog(@"Invalid JSON Annotations.");
     return NO;
   }
-  
+
   PSPDFDataContainerProvider *dataContainerProvider = [[PSPDFDataContainerProvider alloc] initWithData:data];
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, NO)
@@ -303,7 +306,7 @@
   if (!success) {
     NSLog(@"Failed to add annotations.");
   }
-  
+
   [self.pdfController reloadPageAtIndex:self.pdfController.pageIndex animated:NO];
   return success;
 }
@@ -315,49 +318,57 @@
     NSLog(@"Invalid fully qualified name.");
     return nil;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
   VALIDATE_DOCUMENT(document, nil)
-  
+
   for (PSPDFFormElement *formElement in document.formParser.forms) {
     if ([formElement.fullyQualifiedFieldName isEqualToString:fullyQualifiedName]) {
       id formFieldValue = formElement.value;
       return @{@"value": formFieldValue ?: [NSNull new]};
     }
   }
-  
+
   return @{@"error": @"Failed to get the form field value."};
 }
 
-- (void)setFormFieldValue:(NSString *)value fullyQualifiedName:(NSString *)fullyQualifiedName {
+- (BOOL)setFormFieldValue:(NSString *)value fullyQualifiedName:(NSString *)fullyQualifiedName {
   if (fullyQualifiedName.length == 0) {
     NSLog(@"Invalid fully qualified name.");
-    return;
+    return NO;
   }
-  
+
   PSPDFDocument *document = self.pdfController.document;
-  VALIDATE_DOCUMENT(document)
-  
+  VALIDATE_DOCUMENT(document, NO)
+
+  BOOL success = NO;
   for (PSPDFFormElement *formElement in document.formParser.forms) {
     if ([formElement.fullyQualifiedFieldName isEqualToString:fullyQualifiedName]) {
       if ([formElement isKindOfClass:PSPDFButtonFormElement.class]) {
         if ([value isEqualToString:@"selected"]) {
           [(PSPDFButtonFormElement *)formElement select];
+          success = YES;
         } else if ([value isEqualToString:@"deselected"]) {
           [(PSPDFButtonFormElement *)formElement deselect];
+          success = YES;
         }
       } else if ([formElement isKindOfClass:PSPDFChoiceFormElement.class]) {
         ((PSPDFChoiceFormElement *)formElement).selectedIndices = [NSIndexSet indexSetWithIndex:value.integerValue];
+        success = YES;
       } else if ([formElement isKindOfClass:PSPDFTextFieldFormElement.class]) {
         formElement.contents = value;
+        success = YES;
       } else if ([formElement isKindOfClass:PSPDFSignatureFormElement.class]) {
         NSLog(@"Signature form elements are not supported.");
+        success = NO;
       } else {
         NSLog(@"Unsupported form element.");
+        success = NO;
       }
       break;
     }
   }
+  return success;
 }
 
 #pragma mark - Notifications
@@ -375,7 +386,7 @@
     }
     return;
   }
-  
+
   NSString *name = notification.name;
   NSString *change;
   if ([name isEqualToString:PSPDFAnnotationChangedNotification]) {
@@ -385,7 +396,7 @@
   } else if ([name isEqualToString:PSPDFAnnotationsRemovedNotification]) {
     change = @"removed";
   }
-  
+
   NSArray <NSDictionary *> *annotationsJSON = [RCTConvert instantJSONFromAnnotations:annotations error:NULL];
   if (self.onAnnotationsChanged) {
     self.onAnnotationsChanged(@{@"change" : change, @"annotations" : annotationsJSON});
@@ -402,7 +413,7 @@
       [leftItems addObject:barButtonItem];
     }
   }
-  
+
   if (viewMode.length) {
     [self.pdfController.navigationItem setLeftBarButtonItems:[leftItems copy] forViewMode:[RCTConvert PSPDFViewMode:viewMode] animated:animated];
   } else {
@@ -418,7 +429,7 @@
       [rightItems addObject:barButtonItem];
     }
   }
-  
+
   if (viewMode.length) {
     [self.pdfController.navigationItem setRightBarButtonItems:[rightItems copy] forViewMode:[RCTConvert PSPDFViewMode:viewMode] animated:animated];
   } else {
@@ -433,7 +444,7 @@
   } else {
     items = [self.pdfController.navigationItem leftBarButtonItems];
   }
-  
+
   return [self buttonItemsStringFromUIBarButtonItems:items];
 }
 
@@ -444,7 +455,7 @@
   } else {
     items = [self.pdfController.navigationItem rightBarButtonItems];
   }
-  
+
   return [self buttonItemsStringFromUIBarButtonItems:items];
 }
 
@@ -464,7 +475,7 @@
         break;
       }
     }
-    
+
     self.onStateChanged(@{@"documentLoaded" : @(isDocumentLoaded),
                           @"currentPageIndex" : @(pageIndex),
                           @"pageCount" : @(pageCount),
@@ -496,22 +507,30 @@
 
 - (instancetype)initWithAnnotationStateManager:(PSPDFAnnotationStateManager *)annotationStateManager {
   if ((self = [super initWithAnnotationStateManager:annotationStateManager])) {
+    PSPDFAnnotationGroupItem *freeText = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringFreeText];
     PSPDFAnnotationGroupItem *underline = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringUnderline];
 
-    PSPDFAnnotationGroupItem *freeText = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringFreeText];
-
-    PSPDFAnnotationGroupItem *note = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringNote];
     PSPDFAnnotationGroupItem *inkPen = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringInk variant:PSPDFAnnotationVariantStringInkPen];
     PSPDFAnnotationGroupItem *inkHighlighter = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringInk variant:PSPDFAnnotationVariantStringInkHighlighter];
 
     PSPDFAnnotationGroupItem *square = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringSquare];
     PSPDFAnnotationGroupItem *circle = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringCircle];
     PSPDFAnnotationGroupItem *line = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringLine];
+    PSPDFAnnotationGroupItem *polygon = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringPolygon];
+    PSPDFAnnotationGroupItem *polyline = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringPolyLine];
 
-    NSArray<PSPDFAnnotationGroup *> *compactGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[inkPen]], [PSPDFAnnotationGroup groupWithItems:@[inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]]];
+    PSPDFAnnotationGroupItem *sound = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringSound];
+    PSPDFAnnotationGroupItem *image = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringImage];
+    PSPDFAnnotationGroupItem *link = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringLink];
+
+    PSPDFAnnotationGroupItem *eraser = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringEraser];
+    PSPDFAnnotationGroupItem *note = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringNote];
+
+
+    NSArray<PSPDFAnnotationGroup *> *compactGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[eraser, note]],  [PSPDFAnnotationGroup groupWithItems:@[square, circle, line, polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
     PSPDFAnnotationToolbarConfiguration *compact = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:compactGroups];
 
-    NSArray<PSPDFAnnotationGroup *> *regularGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[inkPen]], [PSPDFAnnotationGroup groupWithItems:@[inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]]];
+    NSArray<PSPDFAnnotationGroup *> *regularGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[inkPen, inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[eraser]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]], [PSPDFAnnotationGroup groupWithItems:@[polygon, polyline]], [PSPDFAnnotationGroup groupWithItems:@[image, sound, link]]];
     PSPDFAnnotationToolbarConfiguration *regular = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:regularGroups];
 
     self.configurations = @[regular, compact];
@@ -521,64 +540,6 @@
 
 - (void)dealloc {
   [NSNotificationCenter.defaultCenter removeObserver:self];
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark - Clear Button Action
-
-- (void)clearButtonPressed:(id)sender {
-  // Iterate over all visible pages and remove all but links and widgets (forms).
-  PSPDFViewController *pdfController = self.annotationStateManager.pdfController;
-  PSPDFDocument *document = pdfController.document;
-  for (PSPDFPageView *pageView in pdfController.visiblePageViews) {
-    NSArray<PSPDFAnnotation *> *annotations = [document annotationsForPageAtIndex:pageView.pageIndex type:PSPDFAnnotationTypeAll & ~(PSPDFAnnotationTypeLink | PSPDFAnnotationTypeWidget)];
-    [document removeAnnotations:annotations options:nil];
-
-    // Remove any annotation on the page as well (updates views)
-    // Alternatively, you can call `reloadData` on the pdfController as well.
-    for (PSPDFAnnotation *annotation in annotations) {
-      [pageView removeAnnotation:annotation options:nil animated:YES];
-    }
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark - Notifications
-
-// If we detect annotation changes, schedule a reload.
-- (void)annotationChangedNotification:(NSNotification *)notification {
-  // Re-evaluate toolbar button
-  if (self.window) {
-    [self updateClearAnnotationButton];
-  }
-}
-
-- (void)willShowSpreadViewNotification:(NSNotification *)notification {
-  [self updateClearAnnotationButton];
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark - PSPDFAnnotationStateManagerDelegate
-
-- (void)annotationStateManager:(PSPDFAnnotationStateManager *)manager didChangeUndoState:(BOOL)undoEnabled redoState:(BOOL)redoEnabled {
-  [super annotationStateManager:manager didChangeUndoState:undoEnabled redoState:redoEnabled];
-  [self updateClearAnnotationButton];
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////
-#pragma mark - Private
-
-- (void)updateClearAnnotationButton {
-  __block BOOL annotationsFound = NO;
-  PSPDFViewController *pdfController = self.annotationStateManager.pdfController;
-  [pdfController.visiblePageIndexes enumerateIndexesUsingBlock:^(NSUInteger pageIndex, BOOL *stop) {
-    NSArray<PSPDFAnnotation *> *annotations = [pdfController.document annotationsForPageAtIndex:pageIndex type:PSPDFAnnotationTypeAll & ~(PSPDFAnnotationTypeLink | PSPDFAnnotationTypeWidget)];
-    if (annotations.count > 0) {
-      annotationsFound = YES;
-      *stop = YES;
-    }
-  }];
-  self.clearAnnotationsButton.enabled = annotationsFound;
 }
 
 @end
