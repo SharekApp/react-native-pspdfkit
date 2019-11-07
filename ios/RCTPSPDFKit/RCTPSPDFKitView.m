@@ -36,7 +36,12 @@
 
 - (instancetype)initWithFrame:(CGRect)frame {
   if ((self = [super initWithFrame:frame])) {
-    _pdfController = [[PSPDFViewController alloc] init];
+    // Set configuration to use the custom annotation tool bar when initializing the PSPDFViewController.
+    // For more details, see `PSCCustomizeAnnotationToolbarExample.m` from PSPDFCatalog and our documentation here: https://pspdfkit.com/guides/ios/current/customizing-the-interface/customize-the-annotation-toolbar/
+    _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
+      [builder overrideClass:PSPDFAnnotationToolbar.class withClass:CustomButtonAnnotationToolbar.class];
+    }]];
+
     _pdfController.delegate = self;
     _pdfController.annotationToolbarController.delegate = self;
     _pdfController = [[PSPDFViewController alloc] initWithDocument:nil configuration:[PSPDFConfiguration configurationWithBuilder:^(PSPDFConfigurationBuilder *builder) {
@@ -480,6 +485,100 @@
     }
   }];
   return [barButtonItemsString copy];
+}
+
+@end
+
+@implementation CustomButtonAnnotationToolbar
+
+///////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Lifecycle
+
+- (instancetype)initWithAnnotationStateManager:(PSPDFAnnotationStateManager *)annotationStateManager {
+  if ((self = [super initWithAnnotationStateManager:annotationStateManager])) {
+    PSPDFAnnotationGroupItem *underline = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringUnderline];
+
+    PSPDFAnnotationGroupItem *freeText = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringFreeText];
+
+    PSPDFAnnotationGroupItem *note = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringNote];
+    PSPDFAnnotationGroupItem *inkPen = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringInk variant:PSPDFAnnotationVariantStringInkPen];
+    PSPDFAnnotationGroupItem *inkHighlighter = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringInk variant:PSPDFAnnotationVariantStringInkHighlighter];
+
+    PSPDFAnnotationGroupItem *square = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringSquare];
+    PSPDFAnnotationGroupItem *circle = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringCircle];
+    PSPDFAnnotationGroupItem *line = [PSPDFAnnotationGroupItem itemWithType:PSPDFAnnotationStringLine];
+
+    NSArray<PSPDFAnnotationGroup *> *compactGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[inkPen]], [PSPDFAnnotationGroup groupWithItems:@[inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]]];
+    PSPDFAnnotationToolbarConfiguration *compact = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:compactGroups];
+
+    NSArray<PSPDFAnnotationGroup *> *regularGroups = @[[PSPDFAnnotationGroup groupWithItems:@[freeText, underline]], [PSPDFAnnotationGroup groupWithItems:@[note]], [PSPDFAnnotationGroup groupWithItems:@[inkPen]], [PSPDFAnnotationGroup groupWithItems:@[inkHighlighter]], [PSPDFAnnotationGroup groupWithItems:@[square, circle, line]]];
+    PSPDFAnnotationToolbarConfiguration *regular = [[PSPDFAnnotationToolbarConfiguration alloc] initWithAnnotationGroups:regularGroups];
+
+    self.configurations = @[regular, compact];
+  }
+  return self;
+}
+
+- (void)dealloc {
+  [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Clear Button Action
+
+- (void)clearButtonPressed:(id)sender {
+  // Iterate over all visible pages and remove all but links and widgets (forms).
+  PSPDFViewController *pdfController = self.annotationStateManager.pdfController;
+  PSPDFDocument *document = pdfController.document;
+  for (PSPDFPageView *pageView in pdfController.visiblePageViews) {
+    NSArray<PSPDFAnnotation *> *annotations = [document annotationsForPageAtIndex:pageView.pageIndex type:PSPDFAnnotationTypeAll & ~(PSPDFAnnotationTypeLink | PSPDFAnnotationTypeWidget)];
+    [document removeAnnotations:annotations options:nil];
+
+    // Remove any annotation on the page as well (updates views)
+    // Alternatively, you can call `reloadData` on the pdfController as well.
+    for (PSPDFAnnotation *annotation in annotations) {
+      [pageView removeAnnotation:annotation options:nil animated:YES];
+    }
+  }
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Notifications
+
+// If we detect annotation changes, schedule a reload.
+- (void)annotationChangedNotification:(NSNotification *)notification {
+  // Re-evaluate toolbar button
+  if (self.window) {
+    [self updateClearAnnotationButton];
+  }
+}
+
+- (void)willShowSpreadViewNotification:(NSNotification *)notification {
+  [self updateClearAnnotationButton];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - PSPDFAnnotationStateManagerDelegate
+
+- (void)annotationStateManager:(PSPDFAnnotationStateManager *)manager didChangeUndoState:(BOOL)undoEnabled redoState:(BOOL)redoEnabled {
+  [super annotationStateManager:manager didChangeUndoState:undoEnabled redoState:redoEnabled];
+  [self updateClearAnnotationButton];
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////
+#pragma mark - Private
+
+- (void)updateClearAnnotationButton {
+  __block BOOL annotationsFound = NO;
+  PSPDFViewController *pdfController = self.annotationStateManager.pdfController;
+  [pdfController.visiblePageIndexes enumerateIndexesUsingBlock:^(NSUInteger pageIndex, BOOL *stop) {
+    NSArray<PSPDFAnnotation *> *annotations = [pdfController.document annotationsForPageAtIndex:pageIndex type:PSPDFAnnotationTypeAll & ~(PSPDFAnnotationTypeLink | PSPDFAnnotationTypeWidget)];
+    if (annotations.count > 0) {
+      annotationsFound = YES;
+      *stop = YES;
+    }
+  }];
+  self.clearAnnotationsButton.enabled = annotationsFound;
 }
 
 @end
