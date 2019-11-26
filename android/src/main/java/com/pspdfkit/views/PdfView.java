@@ -11,9 +11,11 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.events.EventDispatcher;
 import com.pspdfkit.annotations.Annotation;
 import com.pspdfkit.annotations.AnnotationType;
@@ -30,6 +32,8 @@ import com.pspdfkit.forms.FormElement;
 import com.pspdfkit.forms.TextFormElement;
 import com.pspdfkit.listeners.OnPreparePopupToolbarListener;
 import com.pspdfkit.listeners.SimpleDocumentListener;
+import com.pspdfkit.react.events.PdfViewAnnotationChangedEvent;
+import com.pspdfkit.react.events.PdfViewAnnotationTappedEvent;
 import com.pspdfkit.react.events.PdfViewDataReturnedEvent;
 import com.pspdfkit.react.events.PdfViewDocumentLoadFailedEvent;
 import com.pspdfkit.react.events.PdfViewDocumentSaveFailedEvent;
@@ -54,10 +58,12 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
 
 import io.reactivex.Completable;
+import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.ObservableSource;
 import io.reactivex.Single;
@@ -69,6 +75,7 @@ import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 import io.reactivex.subjects.BehaviorSubject;
+import io.reactivex.subjects.Subject;
 
 /**
  * This view displays a {@link com.pspdfkit.ui.PdfFragment} and all associated toolbars.
@@ -446,17 +453,21 @@ public class PdfView extends FrameLayout {
                 }));
     }
 
-    public void saveCurrentDocument() {
+    public boolean saveCurrentDocument() throws Exception {
         if (fragment != null) {
             try {
                 if (document.saveIfModified()) {
                     // Since the document listeners won't be called when manually saving we also dispatch this event here.
                     eventDispatcher.dispatchEvent(new PdfViewDocumentSavedEvent(getId()));
+                    return true;
                 }
+                return false;
             } catch (Exception e) {
                 eventDispatcher.dispatchEvent(new PdfViewDocumentSaveFailedEvent(getId(), e.getMessage()));
+                throw e;
             }
         }
+        return false;
     }
 
     public Single<List<Annotation>> getAnnotations(final int pageIndex, @Nullable final String type) {
@@ -552,7 +563,7 @@ public class PdfView extends FrameLayout {
                         return Observable.empty();
                     }
 
-                    return pdfDocument.getAnnotationProvider().getAllAnnotationsOfType(getTypeFromString(type), pageIndex, 1)
+                    return pdfDocument.getAnnotationProvider().getAllAnnotationsOfTypeAsync(getTypeFromString(type), pageIndex, 1)
                             .filter(annotationToFilter -> name.equals(annotationToFilter.getName()))
                             .map(filteredAnnotation -> new Pair<>(filteredAnnotation, pdfDocument));
                 })
@@ -658,49 +669,66 @@ public class PdfView extends FrameLayout {
 
     }
 
-    public Disposable setFormFieldValue(@NonNull String formElementName, @NonNull final String value) {
+    public Maybe<Boolean> setFormFieldValue(@NonNull String formElementName, @NonNull final String value) {
         return document.getFormProvider().getFormElementWithNameAsync(formElementName)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Consumer<FormElement>() {
-
-                    @Override
-                    public void accept(FormElement formElement) {
-                        if (formElement instanceof TextFormElement) {
-                            TextFormElement textFormElement = (TextFormElement) formElement;
-                            textFormElement.setText(value);
-                        } else if (formElement instanceof EditableButtonFormElement) {
-                            EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
-                            if (value.equalsIgnoreCase("selected")) {
-                                editableButtonFormElement.select();
-                            } else if (value.equalsIgnoreCase("deselected")) {
-                                editableButtonFormElement.deselect();
-                            }
-                        } else if (formElement instanceof ChoiceFormElement) {
-                            ChoiceFormElement choiceFormElement = (ChoiceFormElement) formElement;
+                .map(formElement -> {
+                    if (formElement instanceof TextFormElement) {
+                        TextFormElement textFormElement = (TextFormElement) formElement;
+                        textFormElement.setText(value);
+                        return true;
+                    } else if (formElement instanceof EditableButtonFormElement) {
+                        EditableButtonFormElement editableButtonFormElement = (EditableButtonFormElement) formElement;
+                        if (value.equalsIgnoreCase("selected")) {
+                            editableButtonFormElement.select();
+                        } else if (value.equalsIgnoreCase("deselected")) {
+                            editableButtonFormElement.deselect();
+                        }
+                        return true;
+                    } else if (formElement instanceof ChoiceFormElement) {
+                        ChoiceFormElement choiceFormElement = (ChoiceFormElement) formElement;
+                        try {
+                            int selectedIndex = Integer.parseInt(value);
+                            List<Integer> selectedIndices = new ArrayList<>();
+                            selectedIndices.add(selectedIndex);
+                            choiceFormElement.setSelectedIndexes(selectedIndices);
+                            return true;
+                        } catch (NumberFormatException e) {
                             try {
-                                int selectedIndex = Integer.parseInt(value);
+                                // Maybe it's multiple indices.
+                                JSONArray indices = new JSONArray(value);
                                 List<Integer> selectedIndices = new ArrayList<>();
-                                selectedIndices.add(selectedIndex);
+                                for (int i = 0; i < indices.length(); i++) {
+                                    selectedIndices.add(indices.getInt(i));
+                                }
                                 choiceFormElement.setSelectedIndexes(selectedIndices);
-                            } catch (NumberFormatException e) {
-                                try {
-                                    // Maybe it's multiple indices.
-                                    JSONArray indices = new JSONArray(value);
-                                    List<Integer> selectedIndices = new ArrayList<>();
-                                    for (int i = 0; i < indices.length(); i++) {
-                                        selectedIndices.add(indices.getInt(i));
-                                    }
-                                    choiceFormElement.setSelectedIndexes(selectedIndices);
-                                } catch (JSONException ex) {
-                                    // This isn't an index maybe we can set a custom value on a combobox.
-                                    if (formElement instanceof ComboBoxFormElement) {
-                                        ((ComboBoxFormElement) formElement).setCustomText(value);
-                                    }
+                                return true;
+                            } catch (JSONException ex) {
+                                // This isn't an index maybe we can set a custom value on a combobox.
+                                if (formElement instanceof ComboBoxFormElement) {
+                                    ((ComboBoxFormElement) formElement).setCustomText(value);
+                                    return true;
                                 }
                             }
                         }
                     }
+                    return false;
                 });
+    }
+
+    /** Returns the current fragment if it is set. */
+    public Maybe<PdfFragment> getFragment() {
+        return fragmentGetter.firstElement();
+    }
+
+    /** Returns the event registration map for the default events emitted by the {@link PdfView}. */
+    public static  Map<String, Map<String, String>> createDefaultEventRegistrationMap() {
+       return MapBuilder.of(PdfViewStateChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onStateChanged"),
+            PdfViewDocumentSavedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaved"),
+            PdfViewAnnotationTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationTapped"),
+            PdfViewAnnotationChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationsChanged"),
+            PdfViewDataReturnedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDataReturned"),
+            PdfViewDocumentSaveFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaveFailed"),
+            PdfViewDocumentLoadFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoadFailed")
+        );
     }
 }

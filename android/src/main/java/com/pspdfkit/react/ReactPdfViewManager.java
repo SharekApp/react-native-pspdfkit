@@ -151,14 +151,7 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
     @Nullable
     @Override
     public Map getExportedCustomDirectEventTypeConstants() {
-        return MapBuilder.of(PdfViewStateChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onStateChanged"),
-            PdfViewDocumentSavedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaved"),
-            PdfViewAnnotationTappedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationTapped"),
-            PdfViewAnnotationChangedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onAnnotationsChanged"),
-            PdfViewDataReturnedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDataReturned"),
-            PdfViewDocumentSaveFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentSaveFailed"),
-            PdfViewDocumentLoadFailedEvent.EVENT_NAME, MapBuilder.of("registrationName", "onDocumentLoadFailed")
-        );
+        return PdfView.createDefaultEventRegistrationMap();
     }
 
     @Override
@@ -171,7 +164,15 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 root.exitCurrentlyActiveMode();
                 break;
             case COMMAND_SAVE_CURRENT_DOCUMENT:
-                root.saveCurrentDocument();
+                if (args != null) {
+                    final int requestId = args.getInt(0);
+                    try {
+                        boolean result = root.saveCurrentDocument();
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, result));
+                    } catch (Exception e) {
+                        root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, e));
+                    }
+                }
                 break;
             case COMMAND_GET_ANNOTATIONS:
                 if (args != null) {
@@ -241,8 +242,20 @@ public class ReactPdfViewManager extends ViewGroupManager<PdfView> {
                 }
                 break;
             case COMMAND_SET_FORM_FIELD_VALUE:
-                if (args != null && args.size() == 2) {
-                    annotationDisposables.add(root.setFormFieldValue(args.getString(0), args.getString(1)));
+                if (args != null && args.size() == 3) {
+                    final int requestId = args.getInt(0);
+                    Disposable annotationDisposable = root.setFormFieldValue(args.getString(1), args.getString(2))
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(fieldSet ->  {
+                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, fieldSet));
+                        }, throwable -> {
+                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, throwable));
+                        },() -> {
+                            // Called when no form field was found.
+                            root.getEventDispatcher().dispatchEvent(new PdfViewDataReturnedEvent(root.getId(), requestId, false));
+                        });
+                    annotationDisposables.add(annotationDisposable);
                 }
                 break;
         }
